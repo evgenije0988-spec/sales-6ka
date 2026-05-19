@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Жрунтик - Сводка акций</title>
+    <style>
+      /* === Основные переменные и фон === */
+      :root {
+        --primary: #1e289b;
+        --light-bg: #80aff5;
+        --border: rgba(65, 175, 230, 0.4);
+        --text: #333;
+        --header-bg: rgba(230, 245, 255, 0.8);
+        --hover: rgba(224, 247, 255, 0.6);
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: var(--light-bg);
+        background-image: url("elka2.jpg");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        color: var(--text);
+        padding: 20px;
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      /* Полупрозрачный слой над фоном */
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.5);
+        z-index: -1;
+        pointer-events: none;
+      }
+
+      h1 {
+        color: var(--primary);
+        text-align: center;
+        font-weight: 600;
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+        margin-bottom: 30px;
+      }
+
+      /* === Эффект стекла для блоков (Glass Panels) === */
+      .controls,
+      .table-container {
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 12px;
+        box-shadow:
+          0 4px 20px rgba(0, 0, 0, 0.15),
+          inset 0 1px 3px rgba(255, 255, 255, 0.3);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+
+      .controls {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+      }
+
+      /* Поля ввода и кнопка в стиле Glass */
+      input,
+      select,
+      button {
+        padding: 10px 15px;
+        border: 1px solid rgba(138, 43, 226, 0.3);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.7);
+        color: #4b0082;
+        outline: none;
+        transition: all 0.3s ease;
+      }
+
+      input:focus,
+      select:focus,
+      button:focus {
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 0 8px rgba(138, 43, 226, 0.3);
+        border-color: #8a2be2;
+      }
+
+      button {
+        cursor: pointer; /* Изменяем курсор при наведении */
+        color: white; /* Белый текст */
+        background-color: var(--primary); /* Синий фон */
+        border-color: var(--primary); /* Синяя рамка */
+        font-weight: bold; /* Жирный шрифт */
+      }
+
+      button:hover {
+        background-color: #17217a; /* Темнее при наведении */
+        border-color: #17217a;
+      }
+
+      /* === Таблица в стиле отчета === */
+      .table-container {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%; /* Таблица будет занимать всю доступную ширину родителя */
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px 15px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+      }
+
+      th {
+        background-color: var(--header-bg);
+        color: var(--primary);
+        text-transform: uppercase;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+      }
+
+      tbody tr {
+        transition: background-color 0.2s ease;
+      }
+
+      tbody tr:nth-child(even) {
+        background-color: rgba(240, 248, 255, 0.2);
+      }
+
+      tbody tr:hover {
+        background-color: var(--hover);
+      }
+
+      .discount {
+        color: #d9534f;
+        font-weight: bold;
+        background: rgba(217, 83, 79, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      .old-price {
+        color: #777;
+        text-decoration: line-through;
+      }
+
+      .store-tag {
+        font-weight: bold;
+      }
+
+      small {
+        color: #666;
+      }
+      @media (max-width: 600px) {
+        /* Применится, если ширина экрана меньше 600px */
+        .controls {
+          flex-direction: column; /* Выстраиваем элементы вертикально */
+          align-items: stretch; /* Делаем поля ввода на всю ширину блока */
+        }
+      }
+    </style>
+
+    <!-- Библиотека для преобразования JSON в CSV (PapaParse) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- Библиотека для создания XLSX файлов (SheetJS) - на случай если захотите настоящий Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <img
+      src="zruntik2.jpg"
+      width="200"
+      height="200"
+      style="display: block; margin-left: auto; margin-right: auto"
+    />
+    <h1>📊 Жрунтик Сводная таблица акций</h1>
+
+    <div class="controls">
+      <!-- НОВАЯ КНОПКА ЭКСПОРТА -->
+      <button id="exportBtn">📤 Экспорт в Excel (CSV)</button>
+
+      <select id="filterStore">
+        <option value="">🏪 Все магазины</option>
+        <option value="Пятёрочка">Пятёрочка</option>
+        <option value="Европа">Европа</option>
+        <option value="Магнит">Магнит</option>
+        <option value="Победа">Победа</option>
+      </select>
+      <input type="text" id="searchTitle" placeholder="🔍 Поиск товара..." />
+      <input type="number" id="filterPrice" placeholder="💰 Макс. цена (₽)" />
+    </div>
+
+    <div class="table-container">
+      <table id="offersTable">
+        <thead>
+          <tr>
+            <th>Магазин</th>
+            <th>Товар</th>
+            <th>Новая цена</th>
+            <th>Старая цена</th>
+            <th>Скидка</th>
+            <th>Срок действия</th>
+            <th>Вес/Инфо</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- Данные загрузятся скриптом -->
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      let allData = [];
+      const files = ["data.json"];
+
+      async function loadAllData() {
+        try {
+          const requests = files.map((file) =>
+            fetch(file).then((res) => (res.ok ? res.json() : [])),
+          );
+
+          const results = await Promise.all(requests);
+          allData = results.flat();
+          renderTable(allData); // Отображаем все данные при загрузке страницы
+        } catch (error) {
+          console.error("Ошибка загрузки:", error);
+        }
+      }
+
+      function renderTable(data) {
+        const tbody = document.getElementById("tableBody");
+        tbody.innerHTML = "";
+
+        data.forEach((item) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+                     <td class="store-tag">${item.store || "-"}</td>
+                     <td>${item.title || "-"}</td>
+                     <td><strong style="color:${getComputedStyle(document.body).getPropertyValue("--primary")}">${item.price_new || "-"}</strong></td>
+                     <td class="old-price">${item.price_old || "-"}</td>
+                     <td><span class="discount">${item.discount || "-"}</span></td>
+                     <td>${item.valid_until || "-"}</td>
+                     <td><small>${item.weight_info || "-"}</small></td>
+                 `;
+          tbody.appendChild(row);
+        });
+      }
+
+      function applyFilters() {
+        const storeVal = document
+          .getElementById("filterStore")
+          .value.toLowerCase();
+        const titleVal = document
+          .getElementById("searchTitle")
+          .value.toLowerCase();
+        const priceVal = parseFloat(
+          document.getElementById("filterPrice").value,
+        );
+
+        const filtered = allData.filter((item) => {
+          const matchesStore =
+            !storeVal || item.store.toLowerCase().includes(storeVal);
+          const matchesTitle =
+            !titleVal || item.title.toLowerCase().includes(titleVal);
+
+          // Извлекаем число из цены для сравнения с фильтром цены
+          const numericPrice = item.price_new
+            ? parseFloat(
+                item.price_new.replace(",", ".").replace(/[^0-9.]/g, ""),
+              )
+            : Infinity; // Если цены нет, считаем её очень большой
+
+          const matchesPrice = !priceVal || numericPrice <= priceVal;
+
+          return matchesStore && matchesTitle && matchesPrice;
+        });
+
+        renderTable(filtered);
+      }
+
+      // --- НОВАЯ ФУНКЦИЯ ЭКСПОРТА (С ПОДДЕРЖКОЙ КИРИЛЛИЦЫ) ---
+      function exportToCSV() {
+        // Берем отфильтрованные данные (те что сейчас видны в таблице)
+        const storeVal = document
+          .getElementById("filterStore")
+          .value.toLowerCase();
+        const titleVal = document
+          .getElementById("searchTitle")
+          .value.toLowerCase();
+        const priceVal = parseFloat(
+          document.getElementById("filterPrice").value,
+        );
+
+        const filteredData = allData.filter((item) => {
+          const matchesStore =
+            !storeVal || item.store.toLowerCase().includes(storeVal);
+          const matchesTitle =
+            !titleVal || item.title.toLowerCase().includes(titleVal);
+          const numericPrice = item.price_new
+            ? parseFloat(
+                item.price_new.replace(",", ".").replace(/[^0-9.]/g, ""),
+              )
+            : Infinity;
+          const matchesPrice = !priceVal || numericPrice <= priceVal;
+
+          return matchesStore && matchesTitle && matchesPrice;
+        });
+
+        if (filteredData.length === 0) {
+          alert(
+            "Нет данных для экспорта! Примените фильтры или загрузите данные.",
+          );
+          return false;
+        }
+
+        // Формируем массив данных для CSV
+        const csvData = filteredData.map((item) => ({
+          Магазин: item.store,
+          Товар: item.title,
+          Цена: item.price_new,
+          "Старая цена": item.price_old,
+          Скидка: item.discount,
+          "Срок действия": item.valid_until,
+          "Вес/Инфо": item.weight_info,
+        }));
+
+        // Генерируем CSV строку
+        let csvString = Papa.unparse(csvData);
+
+        // --- ГЛАВНОЕ ИЗМЕНЕНИЕ: ДОБАВЛЯЕМ BOM В НАЧАЛО СТРОКИ ---
+        // Это заставляет Excel правильно читать кириллицу и запятые.
+        csvString = "\uFEFF" + csvString;
+
+        // Создаем невидимую ссылку и скачиваем файл
+        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+
+        if (link.download !== undefined) {
+          const url = URL.createObjectURL(blob);
+          link.setAttribute("href", url);
+
+          // Имя файла с текущей датой
+          const dateStr = new Date().toISOString().slice(0, 10);
+          link.setAttribute("download", `zhryntik_export_${dateStr}.csv`);
+
+          link.style.visibility = "hidden";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+
+      // --- ПОДКЛЮЧАЕМ ОБРАБОТЧИК СОБЫТИЯ К КНОПКЕ ---
+      document
+        .getElementById("exportBtn")
+        .addEventListener("click", exportToCSV);
+
+      // Подключаем обработчики к фильтрам
+      document
+        .getElementById("filterStore")
+        .addEventListener("change", applyFilters);
+      document
+        .getElementById("searchTitle")
+        .addEventListener("input", applyFilters);
+      document
+        .getElementById("filterPrice")
+        .addEventListener("input", applyFilters);
+
+      loadAllData();
+    </script>
+  </body>
+</html>
